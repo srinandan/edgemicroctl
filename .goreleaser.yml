@@ -1,0 +1,8 @@
+# .goreleaser.yml
+builds:
+  -
+    main: ./src/main.go
+    binary: edgemicroctl 
+    goos:
+      - linux
+      - darwin
