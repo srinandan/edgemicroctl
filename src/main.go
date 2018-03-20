@@ -29,6 +29,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	res "k8s.io/apimachinery/pkg/api/resource"
 	yml "github.com/ghodss/yaml"
 )
 
@@ -68,16 +69,16 @@ func createSecret() v1.Secret {
 	secret.APIVersion = "v1"
 	secret.Kind = "Secret"
 	datamap := make(map[string][]byte)
-	datamap["mgorg"] = []byte(b64.StdEncoding.EncodeToString([]byte(org)))
-	datamap["mgenv"] = []byte(b64.StdEncoding.EncodeToString([]byte(env)))
-	datamap["mgkey"] = []byte(b64.StdEncoding.EncodeToString([]byte(key)))
-	datamap["mgsecret"] = []byte(b64.StdEncoding.EncodeToString([]byte(scrt)))
+	datamap["mgorg"] = ([]byte(org))
+	datamap["mgenv"] = ([]byte(env))
+	datamap["mgkey"] = ([]byte(key))
+	datamap["mgsecret"] = ([]byte(scrt))
 	datamap["mgconfig"] = []byte(b64.StdEncoding.EncodeToString(configFileData))
 	if mgmturl != "" {
-		datamap["mgmgmturl"] = []byte(b64.StdEncoding.EncodeToString([]byte(mgmturl)))
+		datamap["mgmgmturl"] = ([]byte(mgmturl))
 	}
-	datamap["mgadminemail"] = []byte(b64.StdEncoding.EncodeToString([]byte(username)))
-	datamap["mgadminpassword"] = []byte(b64.StdEncoding.EncodeToString([]byte(password)))
+	datamap["mgadminemail"] = ([]byte(username))
+	datamap["mgadminpassword"] = ([]byte(password))
 	secret.Name = "mgwsecret"
 	secret.Type = "Opaque"
 	secret.Data = datamap
@@ -88,6 +89,32 @@ func printSecret(secret v1.Secret) {
         jsonsecret, _ := json.Marshal(&secret)
         yamlout, _ := yml.JSONToYAML(jsonsecret)
         fmt.Printf(string(yamlout))
+}
+
+func getResources() v1.ResourceRequirements {
+	resources := v1.ResourceRequirements{}
+	limits := v1.ResourceList{}
+	requests := v1.ResourceList{}
+
+	limits["cpu"] = getQuantity(1, true)
+	limits["memory"] = getQuantity(2*1024*1024*1024, false) //"2048Mi"
+
+	requests["cpu"] = getQuantity(1, true)
+	requests["memory"] = getQuantity(1*1024*1024*1024, false) //"1024Mi"
+
+	resources.Limits = limits
+	resources.Requests = requests
+	return resources
+}
+
+func getQuantity(unit int64, decimal bool) res.Quantity {
+	var quantity *res.Quantity
+	if decimal == true {
+		quantity = res.NewQuantity(unit, res.DecimalSI)
+	} else {
+		quantity = res.NewQuantity(unit, res.BinarySI)
+	}
+	return *quantity
 }
 
 func createContainer() v1.Container {
@@ -112,6 +139,7 @@ func createContainer() v1.Container {
 	container.Env = append(container.Env, createEnvValField("SERVICE_NAME","metadata.labels['app']"))
 	container.Env = append(container.Env, createEnvValField("INSTANCE_IP","status.podIP"))
 	container.ImagePullPolicy = "Always"
+	container.Resources = getResources()
 	return container
 }
 
@@ -129,6 +157,7 @@ func createInitContainer1() v1.Container {
         container.Env = append(container.Env, createEnv("EDGEMICRO_ADMINPASSWORD","mgwsecret", "mgadminpassword"))
         container.Env = append(container.Env, createEnvVal("EDGEMICRO_DECORATOR", "1"))
         container.Env = append(container.Env, createEnvVal("EDGEMICRO_CONFIG_DIR","/opt/apigee/.edgemicro"))
+	container.Env = append(container.Env, createEnvVal("EDGEMICRO_CREATE_PRODUCT","1"))
 	container.Env = append(container.Env, createEnvValField("POD_NAME","metadata.name"))
 	container.Env = append(container.Env, createEnvValField("POD_NAMESPACE","metadata.namespace"))
         container.Env = append(container.Env, createEnvValField("SERVICE_NAME","metadata.labels['app']"))
@@ -168,41 +197,6 @@ func getInitContainers() []v1.Container {
 	return containers
 }
 
-func createVolume1() v1.Volume {
-	volume := v1.Volume{}
-	volume.Name = "edgemicro-proxy"
-	volume.EmptyDir = createEmptyDir()
-	return volume
-}
-
-func createEmptyDir() *v1.EmptyDirVolumeSource {
-	emptyDir := v1.EmptyDirVolumeSource{}
-	emptyDir.Medium = "Memory"
-	return &emptyDir
-}
-
-func createVolume2() v1.Volume {
-	volume := v1.Volume{}
-	volume.Name = "edgemicro-certs"
-	volume.Secret = createSecVolume() 
-	return volume
-}
-
-func createSecVolume()  *v1.SecretVolumeSource {
-	var optional bool
-	optional = true
-	secvol := v1.SecretVolumeSource{}
-        secvol.SecretName = "edgemicro.default"
-        secvol.Optional = &optional
-	return &secvol
-}
-
-func getVolumes() []v1.Volume {
-	var volumes []v1.Volume
-	volumes = append(volumes, createVolume1())
-	volumes = append(volumes, createVolume2())
-	return volumes
-}
 
 func createEnv(name string, refname string, refkey string) v1.EnvVar {
 	env := v1.EnvVar{}
@@ -294,7 +288,6 @@ func recurse(yamlDecoder io.ReadCloser, reader *os.File, yamlData []byte) {
 
 		deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, createContainer())
 		deployment.Spec.Template.Spec.InitContainers = getInitContainers()
-		deployment.Spec.Template.Spec.Volumes = getVolumes()
 		newDeployment, _ := json.Marshal(&deployment)
 		yamlout, _ := yml.JSONToYAML(newDeployment)
 		fmt.Printf(string(yamlout))
