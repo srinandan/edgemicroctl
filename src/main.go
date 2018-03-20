@@ -76,6 +76,9 @@ func createSecret() v1.Secret {
 	datamap["mgconfig"] = []byte(b64.StdEncoding.EncodeToString(configFileData))
 	if mgmturl != "" {
 		datamap["mgmgmturl"] = ([]byte(mgmturl))
+	} else {
+		//The default management url is cloud endpoint
+		datamap["mgmgmturl"] = ([]byte("https://api.enterprise.apigee.com"))
 	}
 	datamap["mgadminemail"] = ([]byte(username))
 	datamap["mgadminpassword"] = ([]byte(password))
