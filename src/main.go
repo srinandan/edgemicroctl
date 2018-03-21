@@ -76,6 +76,9 @@ func createSecret() v1.Secret {
 	datamap["mgconfig"] = []byte(b64.StdEncoding.EncodeToString(configFileData))
 	if mgmturl != "" {
 		datamap["mgmgmturl"] = ([]byte(mgmturl))
+	} else {
+		//The default management url is cloud endpoint
+		datamap["mgmgmturl"] = ([]byte("https://api.enterprise.apigee.com"))
 	}
 	datamap["mgadminemail"] = ([]byte(username))
 	datamap["mgadminpassword"] = ([]byte(password))
@@ -89,6 +92,7 @@ func printSecret(secret v1.Secret) {
         jsonsecret, _ := json.Marshal(&secret)
         yamlout, _ := yml.JSONToYAML(jsonsecret)
         fmt.Printf(string(yamlout))
+        fmt.Println("---")
 }
 
 func getResources() v1.ResourceRequirements {
@@ -256,8 +260,12 @@ func recurse(yamlDecoder io.ReadCloser, reader *os.File, yamlData []byte) {
                return 
         }
 
+
 	// Trim unnecessary trailing 0x0 signs which are not accepted
 	trimmedYaml := strings.TrimRight(string(yamlData), string(byte(0)))
+	t := strings.TrimSpace(trimmedYaml)
+
+	if t != "" {} else {return}
 
 	// Decode deployment resource from YAML to JSON
 	jsonData, _, err := decode([]byte(trimmedYaml), nil, nil)
@@ -266,14 +274,14 @@ func recurse(yamlDecoder io.ReadCloser, reader *os.File, yamlData []byte) {
         }
 
 	// Check "kind: deployment"
-        if jsonData.GetObjectKind().GroupVersionKind().Kind != "Deployment" {
+    if jsonData.GetObjectKind().GroupVersionKind().Kind != "Deployment" {
 		out, _ := json.Marshal(jsonData)
 		yamlout, _ := yml.JSONToYAML(out)
 		fmt.Println(string(yamlout))
 		fmt.Println("---")
-		recurse(yamlDecoder, reader, yamlData)
-        } else {
-	        // Marshall JSON deployment
+		
+    } else {
+        // Marshall JSON deployment
 		d, err := json.Marshal(&jsonData)
 		if err != nil {
 			panic(err)
@@ -292,9 +300,11 @@ func recurse(yamlDecoder io.ReadCloser, reader *os.File, yamlData []byte) {
 		yamlout, _ := yml.JSONToYAML(newDeployment)
 		fmt.Printf(string(yamlout))
 		fmt.Printf("\n---\n")
-		printSecret(createSecret())
-		return
+		
 	}
+	recurse(yamlDecoder, reader, yamlData)
+		
+		
 }
 
 func usage(message string) {
@@ -389,5 +399,8 @@ func main() {
 	// Split YAML into chunks or k8s resources, respectively
 	yamlDecoder := yaml.NewDocumentDecoder(ioutil.NopCloser(reader))
 
+	printSecret(createSecret())
 	recurse(yamlDecoder, reader, nil)
+	
+
 }
