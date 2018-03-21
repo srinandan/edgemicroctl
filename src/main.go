@@ -33,7 +33,7 @@ import (
 	yml "github.com/ghodss/yaml"
 )
 
-var org, env, username, password, configFile, key, scrt, mgmturl string
+var org, env, username, password, configFile, key, scrt, mgmturl, mgVer string
 var configFileData []byte
 var fileerr error
 const version string = "1.0.0"
@@ -126,7 +126,7 @@ func createContainer() v1.Container {
 	port := v1.ContainerPort{}
 	port.ContainerPort = 8000
 	container.Name = "edge-microgateway"
-	container.Image = "docker.io/edgemicrok8/edgemicro:latest"
+	container.Image = "docker.io/edgemicrok8/edgemicro:" + mgVer
 	container.Ports = append(container.Ports, port)
 	container.Env = append(container.Env, createEnv("EDGEMICRO_ORG","mgwsecret", "mgorg"))
 	container.Env = append(container.Env, createEnv("EDGEMICRO_ENV","mgwsecret", "mgenv"))
@@ -150,7 +150,7 @@ func createContainer() v1.Container {
 func createInitContainer1() v1.Container {
 	container := v1.Container{}
 	container.Name = "edgemicro-apigee"
-	container.Image = "docker.io/edgemicrok8/edgemicro_apigee_setup:latest"
+	container.Image = "docker.io/edgemicrok8/edgemicro_apigee_setup:" + mgVer
 	container.Env = append(container.Env, createEnv("EDGEMICRO_ORG","mgwsecret", "mgorg"))
         container.Env = append(container.Env, createEnv("EDGEMICRO_ENV","mgwsecret", "mgenv"))
         container.Env = append(container.Env, createEnv("EDGEMICRO_KEY","mgwsecret", "mgkey"))
@@ -351,6 +351,9 @@ func checkParams(org, env, username, password, configFile string) {
         } else if scrt == "" {
                 usage("secret cannot be empty")
         }
+	if mgVer == "" {
+		mgVer = "latest"
+	}
 }
 
 func main() {
@@ -365,6 +368,7 @@ func main() {
         flag.StringVar(&mgmturl, "murl", "", "Apigee Edge Management API Endpoint")
         flag.StringVar(&configFile, "conf", "", "Apigee Microgateway Config File")
         flag.StringVar(&svcFile, "svc", "", "k8s service yaml")
+	flag.StringVar(&mgVer, "mgver", "", "Micrgoateway version")
         flag.BoolVar(&infoLogger, "debug", false, "Enable debug mode")
 
 	// Parse commandline parameters
@@ -401,6 +405,5 @@ func main() {
 
 	printSecret(createSecret())
 	recurse(yamlDecoder, reader, nil)
-	
 
 }
