@@ -1,0 +1,4 @@
+54ff03a98a5dd9bfb3fcc0d04f526c08947545d423648ba3ab16c8026b270d80  edgemicroctl_0.8.1_linux_386.tar.gz
+c86381729fe6a64d8d8946e69cd872c4a54fba6856958b33e7eaa4361d4dab57  edgemicroctl_0.8.1_linux_amd64.tar.gz
+7721cd4478b6c4dad43147588de4e2f94277b8ce2e707754dfda2a890704fa95  edgemicroctl_0.8.1_darwin_386.tar.gz
+d4e4ba5d8ab2a4aa542bcc4f351928564bf1eea465c46a55ea96849d904a108f  edgemicroctl_0.8.1_darwin_amd64.tar.gz
