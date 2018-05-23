@@ -26,6 +26,7 @@ import (
 	"k8s.io/api/core/v1"
 	res "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes/scheme"
 	"log"
@@ -340,6 +341,7 @@ func recurse(yamlDecoder io.ReadCloser, reader *os.File, yamlData []byte) {
 }
 
 func createService() (v1.Service, error) {
+	targetPort := intstr.IntOrString{IntVal: 8000}
 	labels := make(map[string]string)
 	labels["app"] = "edge-microgateway"
 
@@ -352,12 +354,15 @@ func createService() (v1.Service, error) {
 	servicePort := v1.ServicePort{}
 	servicePort.Port = 8000
 	servicePort.Name = "http"
+	servicePort.Protocol = "TCP"
+	servicePort.TargetPort = targetPort
 
 	service.APIVersion = "v1"
 	service.Kind = "Service"
 	service.Spec.Type = "NodePort"
 	service.Spec.Ports = append(service.Spec.Ports, servicePort)
 	service.ObjectMeta = metadata
+	service.Spec.Selector = labels
 	return service, nil
 }
 
