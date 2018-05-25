@@ -50,7 +50,7 @@ var (
 )
 
 var configFileData []byte
-var containerRegURL = "docker.io/edgemicrok8/"
+var containerRegURL = "gcr.io/apigee-microgateway/"
 var fileerr error
 
 const version string = "1.0.0"
