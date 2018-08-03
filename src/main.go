@@ -38,12 +38,9 @@ import (
 var (
 	org string
 	env string
-	username string
-	password string
 	configFile string
 	key string
 	scrt string
-	mgmturl string
 	mgVer string
 	img string
 	namespace string
@@ -94,18 +91,7 @@ func createSecret() v1.Secret {
 	datamap["mgkey"] = ([]byte(key))
 	datamap["mgsecret"] = ([]byte(scrt))
 	datamap["mgconfig"] = []byte(b64.StdEncoding.EncodeToString(configFileData))
-	if mgmturl != "" {
-		datamap["mgmgmturl"] = ([]byte(mgmturl))
-	} else {
-		//The default management url is cloud endpoint
-		datamap["mgmgmturl"] = ([]byte("https://api.enterprise.apigee.com"))
-	}
-	if username != "" {
-		datamap["mgadminemail"] = ([]byte(username))
-	}
-	if password != "" {
-		datamap["mgadminpassword"] = ([]byte(password))
-	}
+
 	secret.Name = "mgwsecret"
 	if namespace != "default" {
 		secret.Namespace = namespace
@@ -166,10 +152,9 @@ func createContainer(img string) v1.Container {
 	container.Env = append(container.Env, createEnv("EDGEMICRO_CONFIG", "mgwsecret", "mgconfig"))
 	if sideCar {
 		container.Env = append(container.Env, createEnv("EDGEMICRO_MGMTURL", "mgwsecret", "mgmgmturl"))
-		container.Env = append(container.Env, createEnv("EDGEMICRO_ADMINEMAIL", "mgwsecret", "mgadminemail"))
-		container.Env = append(container.Env, createEnv("EDGEMICRO_ADMINPASSWORD", "mgwsecret", "mgadminpassword"))
 		container.Env = append(container.Env, createEnvVal("EDGEMICRO_DECORATOR", "1"))
-		container.Env = append(container.Env, createEnvValField("SERVICE_NAME", "metadata.labels['app']"))
+		container.Env = append(container.Env, createEnvVal("EDGEMICRO_LOCAL_PROXY", "1"))
+		container.Env = append(container.Env, createEnvValField("CONTAINER_PORT", "metadata.labels['containerPort']"))
 	}
 	container.Env = append(container.Env, createEnvVal("EDGEMICRO_CONFIG_DIR", "/opt/apigee/.edgemicro"))
 	container.Env = append(container.Env, createEnvValField("POD_NAME", "metadata.name"))
@@ -177,41 +162,6 @@ func createContainer(img string) v1.Container {
 	container.Env = append(container.Env, createEnvValField("INSTANCE_IP", "status.podIP"))
 	container.ImagePullPolicy = "Always"
 	container.Resources = getResources()
-	return container
-}
-
-func createInitContainer1() v1.Container {
-	container := v1.Container{}
-	container.Name = "edgemicro-apigee"
-	container.Image = containerRegURL + "edgemicro_apigee_setup:" + mgVer
-	container.Env = append(container.Env, createEnv("EDGEMICRO_ORG", "mgwsecret", "mgorg"))
-	container.Env = append(container.Env, createEnv("EDGEMICRO_ENV", "mgwsecret", "mgenv"))
-	container.Env = append(container.Env, createEnv("EDGEMICRO_KEY", "mgwsecret", "mgkey"))
-	container.Env = append(container.Env, createEnv("EDGEMICRO_SECRET", "mgwsecret", "mgsecret"))
-	container.Env = append(container.Env, createEnv("EDGEMICRO_CONFIG", "mgwsecret", "mgconfig"))
-	container.Env = append(container.Env, createEnv("EDGEMICRO_MGMTURL", "mgwsecret", "mgmgmturl"))
-	container.Env = append(container.Env, createEnv("EDGEMICRO_ADMINEMAIL", "mgwsecret", "mgadminemail"))
-	container.Env = append(container.Env, createEnv("EDGEMICRO_ADMINPASSWORD", "mgwsecret", "mgadminpassword"))
-	container.Env = append(container.Env, createEnvVal("EDGEMICRO_DECORATOR", "1"))
-	container.Env = append(container.Env, createEnvVal("EDGEMICRO_CONFIG_DIR", "/opt/apigee/.edgemicro"))
-	container.Env = append(container.Env, createEnvVal("EDGEMICRO_CREATE_PRODUCT", "1"))
-	container.Env = append(container.Env, createEnvValField("POD_NAME", "metadata.name"))
-	container.Env = append(container.Env, createEnvValField("POD_NAMESPACE", "metadata.namespace"))
-	container.Env = append(container.Env, createEnvValField("SERVICE_NAME", "metadata.labels['app']"))
-	container.Env = append(container.Env, createEnvValField("INSTANCE_IP", "status.podIP"))
-	container.ImagePullPolicy = "Always"
-	container.SecurityContext = createSecContext()
-	return container
-}
-
-func createInitContainer2() v1.Container {
-	container := v1.Container{}
-	var args = []string{"-p", "8000", "-u", "1001"}
-	container.Name = "edgemicro-init"
-	container.Image = containerRegURL + "edgemicro_proxy_init:latest"
-	container.Args = args
-	container.ImagePullPolicy = "Always"
-	container.SecurityContext = createSecContext()
 	return container
 }
 
@@ -225,13 +175,6 @@ func createCapabilities() *v1.Capabilities {
 	capabilities := v1.Capabilities{}
 	capabilities.Add = append(capabilities.Add, "NET_ADMIN")
 	return &capabilities
-}
-
-func getInitContainers() []v1.Container {
-	var containers []v1.Container
-	containers = append(containers, createInitContainer1())
-	containers = append(containers, createInitContainer2())
-	return containers
 }
 
 func createEnv(name string, refname string, refkey string) v1.EnvVar {
@@ -328,8 +271,7 @@ func recurse(yamlDecoder io.ReadCloser, reader *os.File, yamlData []byte) {
 			panic(err)
 		}
 
-		deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, createContainer(""))
-		deployment.Spec.Template.Spec.InitContainers = getInitContainers()
+		deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, createContainer(img))
 		newDeployment, _ := json.Marshal(&deployment)
 		yamlout, _ := yml.JSONToYAML(newDeployment)
 		fmt.Printf(string(yamlout))
@@ -422,7 +364,7 @@ func usage(message string) {
 	}
 	fmt.Println("edgemicroctl version ", version)
 	fmt.Println("")
-	fmt.Println("Usage: edgemicroctl -org=<orgname> -env=<envname> -user=<username> -pass=<password> -conf=<conf file>")
+	fmt.Println("Usage: edgemicroctl -org=<orgname> -env=<envname> -conf=<conf file>")
 	fmt.Println("")
 	fmt.Println("Options:")
 	fmt.Println("org  = Apigee Edge Organization name (mandatory)")
@@ -432,21 +374,17 @@ func usage(message string) {
 	fmt.Println("conf = Apigee Edge Microgateway configuration file (mandatory)")
 	fmt.Println("")
 	fmt.Println("For Sidecar deployment")
-	fmt.Println("user = Apigee Edge Username (mandatory)")
-	fmt.Println("pass = Apigee Edge Password (mandatory)")
 	fmt.Println("svc  = Kubernetes Service configuration file (mandatory)")
-	fmt.Println("")
-	fmt.Println("For Pod deployment")
-	fmt.Println("img  = Apigee Edge Microgateway docker image (mandatory)")
 	fmt.Println("")
 	fmt.Println("Other options:")
 	fmt.Println("nam    = Kubernetes namespace; default is default")
-	fmt.Println("murl   = Apigee Edge Management API Endpoint; Default is api.enterprise.apigee.com")
+	fmt.Println("mgVer  = Microgateway version; default is latest")
+	fmt.Println("img  = Apigee Edge Microgateway docker image (optional)")
 	fmt.Println("debug  = Enable debug mode (default: false)")
 	fmt.Println("")
 	fmt.Println("")
-	fmt.Println("Example for Sidecar: edgemicroctl -org=trial -env=test -user=trial@apigee.com -pass=Secret123 -conf=trial-test-config.yaml -svc=myservice.yaml -key=xxxx -sec=xxxx")
-	fmt.Println("Example for Pod: edgemicroctl -org=trial -env=test -conf=trial-test-config.yaml -svc=myservice.yaml -key=xxxx -sec=xxxx")
+	fmt.Println("Example for Sidecar: edgemicroctl -org=trial -env=test -conf=trial-test-config.yaml -svc=myservice.yaml -key=xxxx -sec=xxxx")
+	fmt.Println("Example for Pod: edgemicroctl -org=trial -env=test -conf=trial-test-config.yaml -key=xxxx -sec=xxxx")
 	os.Exit(1)
 }
 
@@ -467,30 +405,13 @@ func checkMandParams(org, env, username, password, configFile string) {
 	}
 }
 
-func checkSideCarParams(username, password string) {
-	if username == "" {
-		usage("username cannot be empty for sidecar deployment")
-	} else if password == "" {
-		usage("password cannot be empty for sidecar deployment")
-	}
-}
-
-func checkPodParams(img string) {
-	if img == "" {
-		usage("image param cannot be empty for Pod deployment")
-	}
-}
-
 func main() {
 
 	var svcFile string
 	flag.StringVar(&org, "org", "", "Apigee Organization Name")
 	flag.StringVar(&env, "env", "", "Apigee Environment Name")
-	flag.StringVar(&username, "user", "", "Apigee Organization Username")
-	flag.StringVar(&password, "pass", "", "Apigee Organization Password")
 	flag.StringVar(&key, "key", "", "Microgateway Key")
 	flag.StringVar(&scrt, "sec", "", "Microgateway Secret")
-	flag.StringVar(&mgmturl, "murl", "", "Apigee Edge Management API Endpoint")
 	flag.StringVar(&configFile, "conf", "", "Apigee Microgateway Config File")
 	flag.StringVar(&svcFile, "svc", "", "k8s service yaml")
 	flag.StringVar(&mgVer, "mgver", "", "Micrgoateway version")
@@ -502,7 +423,7 @@ func main() {
 	flag.Parse()
 
 	//check mandatory params
-	checkMandParams(org, env, username, password, configFile)
+	checkMandParams(org, env, key, scrt, configFile)
 
 	if infoLogger {
 		Init(os.Stdout, os.Stdout, os.Stderr)
@@ -519,7 +440,6 @@ func main() {
 	}
 
 	if svcFile != "" {
-		checkSideCarParams(username, password)
 		sideCar = true
 		// Get filename
 		yamlFilepath, err := filepath.Abs(svcFile)
@@ -536,7 +456,6 @@ func main() {
 		printSecret(createSecret())
 		recurse(yamlDecoder, reader, nil)
 	} else {
-		checkPodParams(img)
 		printSpecification()
 	}
 }
