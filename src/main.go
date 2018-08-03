@@ -151,7 +151,6 @@ func createContainer(img string) v1.Container {
 	container.Env = append(container.Env, createEnv("EDGEMICRO_SECRET", "mgwsecret", "mgsecret"))
 	container.Env = append(container.Env, createEnv("EDGEMICRO_CONFIG", "mgwsecret", "mgconfig"))
 	if sideCar {
-		container.Env = append(container.Env, createEnv("EDGEMICRO_MGMTURL", "mgwsecret", "mgmgmturl"))
 		container.Env = append(container.Env, createEnvVal("EDGEMICRO_DECORATOR", "1"))
 		container.Env = append(container.Env, createEnvVal("EDGEMICRO_LOCAL_PROXY", "1"))
 		container.Env = append(container.Env, createEnvValField("CONTAINER_PORT", "metadata.labels['containerPort']"))
